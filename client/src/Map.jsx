@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -7,11 +7,16 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 const Map = () => {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  
+  // UI State
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState(null);
+  const [formData, setFormData] = useState({ title: '', notes: '' });
 
-  // 1. Define the function FIRST
   const fetchPoints = async () => {
     try {
       const response = await fetch('http://localhost:5000/api/points');
+      if (!response.ok) return;
       const points = await response.json();
 
       points.forEach((point) => {
@@ -25,13 +30,12 @@ const Map = () => {
           .addTo(map.current);
       });
     } catch (err) {
-      console.error('Error fetching points:', err);
+      console.error('Backend offline? Error:', err);
     }
   };
 
-useEffect(() => {
+  useEffect(() => {
     if (map.current) return;
-
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/streets-v12',
@@ -45,46 +49,91 @@ useEffect(() => {
       fetchPoints();
     });
 
-    // --- ADD THIS CLICK LISTENER ---
-    map.current.on('click', async (e) => {
-      const { lng, lat } = e.lngLat;
-
-      // Simple prompts for data collection
-      const title = prompt("Enter a title for this location:");
-      if (!title) return; // Cancel if no title
-
-      const notes = prompt("Enter some notes:");
-
-      // Prepare the data
-      const newPoint = {
-        user_id: "andon_dev", // We'll swap this for Clerk later
-        title: title,
-        notes: notes,
-        lng: lng,
-        lat: lat
-      };
-
-      // Send it to your Node.js server
-      try {
-        const response = await fetch('http://localhost:5000/api/points', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newPoint)
-        });
-
-        if (response.ok) {
-          // Refresh the markers to show the new one immediately
-          fetchPoints();
-        }
-      } catch (err) {
-        console.error("Error saving point:", err);
-      }
+    map.current.on('click', (e) => {
+      setSelectedCoords(e.lngLat);
+      setSidebarOpen(true);
     });
-    // -------------------------------
-
   }, []);
 
-  return <div ref={mapContainer} style={{ width: '100vw', height: '100vh' }} />;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const newPoint = {
+      user_id: "andon_dev",
+      title: formData.title,
+      notes: formData.notes,
+      lng: selectedCoords.lng,
+      lat: selectedCoords.lat
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPoint)
+      });
+
+      if (response.ok) {
+        setSidebarOpen(false);
+        setFormData({ title: '', notes: '' });
+        fetchPoints();
+      }
+    } catch (err) {
+  console.error("Error saving point:", err); // Now it's used!
+  alert("Check the console for the error details.");
+}
+  };
+
+  return (
+    <div className="relative w-screen h-screen">
+      {/* THE MAP DIV */}
+      <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+
+      {/* THE SIDEBAR */}
+      {sidebarOpen && (
+        <div className="absolute top-4 left-4 h-[calc(100%-2rem)] w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-6 z-10 flex flex-col border border-gray-100 transition-all">
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">New Point</h2>
+          <p className="text-[10px] text-gray-400 font-mono mb-6 uppercase tracking-widest">
+            {selectedCoords?.lat.toFixed(4)}N / {selectedCoords?.lng.toFixed(4)}W
+          </p>
+          
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase">Location Title</label>
+              <input 
+                className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50"
+                placeholder="Name your discovery..."
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase">Description</label>
+              <textarea 
+                className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 h-40 resize-none"
+                placeholder="What's the story here?"
+                value={formData.notes}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              />
+            </div>
+
+            <button type="submit" className="bg-black text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-xl mt-auto">
+              Save to Globe
+            </button>
+            
+            <button 
+              type="button" 
+              onClick={() => setSidebarOpen(false)}
+              className="text-gray-400 text-xs font-bold hover:text-red-500 transition-colors py-2 uppercase tracking-tighter"
+            >
+              Discard
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Map;
