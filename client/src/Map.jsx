@@ -2,106 +2,127 @@ import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-const Map = () => {
+const Map = ({user}) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const markersRef = useRef([]);
   
-  // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState(null);
-  const [formData, setFormData] = useState({ title: '', notes: '' });
+  const [formData, setFormData] = useState({ title: '', description: '', spot_type: '' });
 
-  const fetchPoints = async () => {
+  const fetchSpots = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/points');
+      const response = await fetch('http://localhost:3001/api/spots');
       if (!response.ok) return;
-      const points = await response.json();
+      const spots = await response.json();
 
-      points.forEach((point) => {
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(
-          `<h3>${point.title}</h3><p>${point.notes}</p>`
-        );
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
 
-        new mapboxgl.Marker({ color: '#bb0000' })
-          .setLngLat(point.geometry.coordinates)
+      spots.forEach((spot) => {
+        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div style="font-family: sans-serif; padding: 4px;">
+            <h3 style="margin: 0 0 4px; font-size: 14px; font-weight: bold;">${spot.title}</h3>
+            <p style="margin: 0 0 4px; font-size: 12px; color: #666;">${spot.description || ''}</p>
+            <span style="font-size: 11px; background: #000; color: #fff; padding: 2px 8px; border-radius: 99px;">${spot.spot_type || 'unknown'}</span>
+          </div>
+        `);
+
+        const marker = new mapboxgl.Marker({ color: '#bb0000' })
+          .setLngLat([spot.longitude, spot.latitude])
           .setPopup(popup)
           .addTo(map.current);
+
+        marker.getElement().addEventListener('click', (e) => {
+          e.stopPropagation();
+          marker.togglePopup();
+        });
+
+        markersRef.current.push(marker);
       });
     } catch (err) {
-      console.error('Backend offline? Error:', err);
+      console.error('Error fetching spots:', err);
     }
   };
 
   useEffect(() => {
-    if (map.current) return;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      projection: 'globe',
-      center: [-83.0125, 40.0000], 
-      zoom: 12
-    });
+    if (!map.current) {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        projection: 'globe',
+        center: [-83.0125, 40.0000],
+        zoom: 12
+      });
 
-    map.current.on('style.load', () => {
-      map.current.setFog({});
-      fetchPoints();
-    });
+      map.current.on('style.load', () => {
+        map.current.setFog({});
+        fetchSpots();
+      });
+    }
 
-    map.current.on('click', (e) => {
+    const handleClick = (e) => {
+      if (!user) return;
       setSelectedCoords(e.lngLat);
       setSidebarOpen(true);
-    });
-  }, []);
+    };
+
+    map.current.on('click', handleClick);
+
+    return () => {
+      map.current.off('click', handleClick);
+    };
+  }, [user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newPoint = {
-      user_id: "andon_dev",
+    const newSpot = {
+      user_id: user.id,
       title: formData.title,
-      notes: formData.notes,
-      lng: selectedCoords.lng,
-      lat: selectedCoords.lat
+      description: formData.description,
+      latitude: selectedCoords.lat,
+      longitude: selectedCoords.lng,
+      spot_type: formData.spot_type,
+      is_public: true
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/points', {
+      const response = await fetch('http://localhost:3001/api/spots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPoint)
+        body: JSON.stringify(newSpot)
       });
 
       if (response.ok) {
         setSidebarOpen(false);
-        setFormData({ title: '', notes: '' });
-        fetchPoints();
+        setFormData({ title: '', description: '', spot_type: '' });
+        fetchSpots();
       }
     } catch (err) {
-  console.error("Error saving point:", err); // Now it's used!
-  alert("Check the console for the error details.");
-}
+      console.error('Error saving spot:', err);
+    }
   };
 
   return (
     <div className="relative w-screen h-screen">
-      {/* THE MAP DIV */}
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
 
-      {/* THE SIDEBAR */}
       {sidebarOpen && (
         <div className="absolute top-4 left-4 h-[calc(100%-2rem)] w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-6 z-10 flex flex-col border border-gray-100 transition-all">
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">New Point</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">New Spot</h2>
           <p className="text-[10px] text-gray-400 font-mono mb-6 uppercase tracking-widest">
             {selectedCoords?.lat.toFixed(4)}N / {selectedCoords?.lng.toFixed(4)}W
           </p>
           
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-black text-gray-400 uppercase">Location Title</label>
               <input 
                 className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50"
-                placeholder="Name your discovery..."
+                placeholder="Name this spot..."
                 value={formData.title}
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
                 required
@@ -112,14 +133,34 @@ const Map = () => {
               <label className="text-[10px] font-black text-gray-400 uppercase">Description</label>
               <textarea 
                 className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 h-40 resize-none"
-                placeholder="What's the story here?"
-                value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                placeholder="What's the spot like?"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
               />
             </div>
 
-            <button type="submit" className="bg-black text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-xl mt-auto">
-              Save to Globe
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase">Spot Type</label>
+              <select
+                className="border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-black bg-gray-50/50"
+                value={formData.spot_type}
+                onChange={(e) => setFormData({ ...formData, spot_type: e.target.value })}
+                required
+              >
+                <option value="">Select a type...</option>
+                <option value="skatepark">Skatepark</option>
+                <option value="street">Street Spot</option>
+                <option value="diy">DIY</option>
+                <option value="transition">Transition</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <button 
+              onClick={handleSubmit}
+              className="bg-black text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition-all shadow-xl mt-auto"
+            >
+              Save Spot
             </button>
             
             <button 
@@ -129,7 +170,7 @@ const Map = () => {
             >
               Discard
             </button>
-          </form>
+          </div>
         </div>
       )}
     </div>

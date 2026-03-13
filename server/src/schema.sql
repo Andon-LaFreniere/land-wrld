@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS spots (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  title VARCHAR(100) NOT NULL,
+  description TEXT,
+  latitude DECIMAL(9,6) NOT NULL,
+  longitude DECIMAL(9,6) NOT NULL,
+  spot_type VARCHAR(50),
+  is_public BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS spot_photos (
+  id SERIAL PRIMARY KEY,
+  spot_id INTEGER REFERENCES spots(id) ON DELETE CASCADE,
+  photo_url TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);

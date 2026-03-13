@@ -1,4 +1,5 @@
 // server/index.js
+/*
 const express = require("express");
 const cors = require("cors"); // You'll need this to let React talk to Node
 const db = require("./src/db");
@@ -60,4 +61,28 @@ app.post("/api/points", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+});
+*/
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const authRoutes = require("./src/routes/auth");
+const spotsRoutes = require("./src/routes/spots");
+
+app.use("/api/auth", authRoutes);
+app.use("/api/spots", spotsRoutes);
+
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
