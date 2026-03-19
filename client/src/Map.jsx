@@ -47,33 +47,43 @@ const Map = ({ user }) => {
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
 
-      spots.forEach((spot) => {
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-          <div style="font-family: sans-serif; padding: 4px;">
-            <h3 style="margin:0 0 4px;font-size:14px;font-weight:bold;">
-              ${spot.title}
-            </h3>
-            <p style="margin:0 0 4px;font-size:12px;color:#666;">
-              ${spot.description || ''}
-            </p>
-            <span style="font-size:11px;background:#000;color:#fff;padding:2px 8px;border-radius:99px;">
-              ${spot.spot_type || 'unknown'}
-            </span>
-          </div>
-        `);
+      for (const spot of spots) {
+  let photoHTML = '';
+  try {
+    const photoRes = await fetch(`http://localhost:3001/api/spots/${spot.id}/photos`);
+    const photos = await photoRes.json();
+    if (photos.length > 0) {
+      photoHTML = `
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
+          ${photos.map(p => `<img src="${p.photo_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px;" />`).join('')}
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.error('Error fetching photos:', err);
+  }
 
-        const marker = new mapboxgl.Marker({ color: '#bb0000' })
-          .setLngLat([spot.longitude, spot.latitude])
-          .setPopup(popup)
-          .addTo(map.current);
+  const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+    <div style="font-family: sans-serif; padding: 4px; max-width: 200px;">
+      <h3 style="margin: 0 0 4px; font-size: 14px; font-weight: bold;">${spot.title}</h3>
+      <p style="margin: 0 0 4px; font-size: 12px; color: #666;">${spot.description || ''}</p>
+      <span style="font-size: 11px; background: #000; color: #fff; padding: 2px 8px; border-radius: 99px;">${spot.spot_type || 'unknown'}</span>
+      ${photoHTML}
+    </div>
+  `);
 
-        marker.getElement().addEventListener('click', (e) => {
-          e.stopPropagation();
-          marker.togglePopup();
-        });
+  const marker = new mapboxgl.Marker({ color: '#bb0000' })
+    .setLngLat([spot.longitude, spot.latitude])
+    .setPopup(popup)
+    .addTo(map.current);
 
-        markersRef.current.push(marker);
-      });
+  marker.getElement().addEventListener('click', (e) => {
+    e.stopPropagation();
+    marker.togglePopup();
+  });
+
+  markersRef.current.push(marker);
+}
 
     } catch (err) {
       console.error('Error fetching spots:', err);
@@ -164,7 +174,16 @@ const Map = ({ user }) => {
       {sidebarOpen && (
         <div className="absolute top-4 left-4 h-[calc(100%-2rem)] w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-6 z-10 flex flex-col border border-gray-100 transition-all">
 
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">New Spot</h2>
+          <div className="flex items-center justify-between mb-1">
+  <h2 className="text-2xl font-bold text-gray-800">New Spot</h2>
+  <button
+    type="button"
+    onClick={() => setSidebarOpen(false)}
+    className="text-gray-400 hover:text-red-500 transition-colors text-xl font-bold"
+  >
+    ✕
+  </button>
+</div>
 
           <p className="text-[10px] text-gray-400 font-mono mb-6 uppercase tracking-widest">
             {selectedCoords
