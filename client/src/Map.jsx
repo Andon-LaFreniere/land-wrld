@@ -118,6 +118,12 @@ const isOwner = user && user.id === spot.user_id;
   fetchSpotsRef.current = fetchSpots;
 }, [fetchSpots]);
 
+useEffect(() => {
+  if (map.current) {
+    fetchSpots();
+  }
+}, [user, fetchSpots]);
+
   useEffect(() => {
     if (!map.current) {
       map.current = new mapboxgl.Map({
