@@ -16,7 +16,7 @@ export default function AuthModal({ onClose, onLogin }) {
         ? { email: formData.email, password: formData.password }
         : { username: formData.username, email: formData.email, password: formData.password };
 
-      const res = await axios.post(`http://localhost:3001${endpoint}`, payload);
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}${endpoint}`, payload);
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       onLogin(res.data.user);

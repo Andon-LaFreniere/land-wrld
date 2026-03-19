@@ -35,9 +35,7 @@ const Map = ({ user }) => {
 
       if (filters.sort) params.append('sort', filters.sort);
 
-      const response = await fetch(
-        `http://localhost:3001/api/spots?${params.toString()}`
-      );
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/spots?${params.toString()}`);
 
       if (!response.ok) return;
 
@@ -50,7 +48,7 @@ const Map = ({ user }) => {
       for (const spot of spots) {
   let photoHTML = '';
   try {
-    const photoRes = await fetch(`http://localhost:3001/api/spots/${spot.id}/photos`);
+    const photoRes = await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`);
     const photos = await photoRes.json();
     if (photos.length > 0) {
       photoHTML = `
@@ -134,7 +132,7 @@ const Map = ({ user }) => {
     };
 
     try {
-      const response = await fetch('http://localhost:3001/api/spots', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/spots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSpot)
@@ -147,7 +145,7 @@ const Map = ({ user }) => {
     const photoData = new FormData();
     Array.from(formData.photos).forEach(file => photoData.append('photos', file));
 
-    await fetch(`http://localhost:3001/api/spots/${spot.id}/photos`, {
+    await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`, {
       method: 'POST',
       body: photoData,
     });
