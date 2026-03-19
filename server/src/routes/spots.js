@@ -1,4 +1,5 @@
 const express = require("express");
+const { upload } = require("../cloudinary");
 const pool = require("../db");
 
 const router = express.Router();
@@ -47,6 +48,27 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch spots" });
+  }
+});
+
+// POST photos for a spot
+router.post("/:id/photos", upload.array("photos", 5), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const photoInserts = req.files.map((file) =>
+      pool.query(
+        `INSERT INTO spot_photos (spot_id, photo_url) VALUES ($1, $2) RETURNING *`,
+        [id, file.path],
+      ),
+    );
+
+    const results = await Promise.all(photoInserts);
+    const photos = results.map((r) => r.rows[0]);
+    res.status(201).json(photos);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to save photos" });
   }
 });
 

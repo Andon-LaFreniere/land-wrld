@@ -16,7 +16,8 @@ const Map = ({ user }) => {
     title: '',
     description: '',
     spot_type: '',
-    is_public:true
+    is_public:true,
+    photos: null
   });
 
   const fetchSpots = useCallback(async (filters = {}) => {
@@ -130,10 +131,22 @@ const Map = ({ user }) => {
       });
 
       if (response.ok) {
-        setSidebarOpen(false);
-        setFormData({ title: '', description: '', spot_type: '' });
-        fetchSpots();
-      }
+  const spot = await response.json();
+
+  if (formData.photos && formData.photos.length > 0) {
+    const photoData = new FormData();
+    Array.from(formData.photos).forEach(file => photoData.append('photos', file));
+
+    await fetch(`http://localhost:3001/api/spots/${spot.id}/photos`, {
+      method: 'POST',
+      body: photoData,
+    });
+  }
+
+  setSidebarOpen(false);
+  setFormData({ title: '', description: '', spot_type: '', is_public: true, photos: null });
+  fetchSpots();
+}
     } catch (err) {
       console.error('Error saving spot:', err);
     }
@@ -220,6 +233,17 @@ const Map = ({ user }) => {
   >
     <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform mx-1 ${formData.is_public ? 'translate-x-4' : 'translate-x-0'}`} />
   </button>
+</div>
+
+<div className="flex flex-col gap-1">
+  <label className="text-[10px] font-black text-gray-400 uppercase">Photos</label>
+  <input
+    type="file"
+    accept="image/*"
+    multiple
+    onChange={(e) => setFormData({ ...formData, photos: e.target.files })}
+    className="border border-gray-200 p-3 rounded-xl outline-none bg-gray-50/50 text-sm text-gray-500"
+  />
 </div>
 
             <button
