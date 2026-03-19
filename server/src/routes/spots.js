@@ -120,4 +120,28 @@ router.get("/:id/photos", async (req, res) => {
   }
 });
 
+// DELETE a spot
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { user_id } = req.body;
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM spots WHERE id = $1 AND user_id = $2 RETURNING *`,
+      [id, user_id],
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(403)
+        .json({ error: "Not authorized or spot not found" });
+    }
+
+    res.json({ message: "Spot deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete spot" });
+  }
+});
+
 module.exports = router;

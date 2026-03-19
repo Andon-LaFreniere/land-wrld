@@ -9,6 +9,8 @@ const Map = ({ user }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const markersRef = useRef([]);
+  const fetchSpotsRef = useRef(null);
+  
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState(null);
@@ -16,7 +18,7 @@ const Map = ({ user }) => {
     title: '',
     description: '',
     spot_type: '',
-    is_public:true,
+    is_public: true,
     photos: null
   });
 
@@ -41,52 +43,79 @@ const Map = ({ user }) => {
 
       const spots = await response.json();
 
-      // remove old markers
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
 
       for (const spot of spots) {
-  let photoHTML = '';
-  try {
-    const photoRes = await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`);
-    const photos = await photoRes.json();
-    if (photos.length > 0) {
-      photoHTML = `
-        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
-          ${photos.map(p => `<img src="${p.photo_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px;" />`).join('')}
-        </div>
-      `;
-    }
-  } catch (err) {
-    console.error('Error fetching photos:', err);
-  }
+        let photoHTML = '';
+        try {
+          const photoRes = await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`);
+          const photos = await photoRes.json();
+          if (photos.length > 0) {
+            photoHTML = `
+              <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
+                ${photos.map(p => `<img src="${p.photo_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px;" />`).join('')}
+              </div>
+            `;
+          }
+        } catch (err) {
+          console.error('Error fetching photos:', err);
+        }
 
-  const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-    <div style="font-family: sans-serif; padding: 4px; max-width: 200px;">
-      <h3 style="margin: 0 0 4px; font-size: 14px; font-weight: bold;">${spot.title}</h3>
-      <p style="margin: 0 0 4px; font-size: 12px; color: #666;">${spot.description || ''}</p>
-      <span style="font-size: 11px; background: #000; color: #fff; padding: 2px 8px; border-radius: 99px;">${spot.spot_type || 'unknown'}</span>
-      ${photoHTML}
-    </div>
-  `);
+        const isOwner = user && user.id === spot.user_id;
 
-  const marker = new mapboxgl.Marker({ color: '#bb0000' })
-    .setLngLat([spot.longitude, spot.latitude])
-    .setPopup(popup)
-    .addTo(map.current);
+        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
+          <div style="font-family: sans-serif; padding: 4px; max-width: 200px;">
+            <h3 style="margin: 0 0 4px; font-size: 14px; font-weight: bold;">${spot.title}</h3>
+            <p style="margin: 0 0 4px; font-size: 12px; color: #666;">${spot.description || ''}</p>
+            <span style="font-size: 11px; background: #000; color: #fff; padding: 2px 8px; border-radius: 99px;">${spot.spot_type || 'unknown'}</span>
+            ${photoHTML}
+            ${isOwner ? `<button id="delete-spot-${spot.id}" style="margin-top: 8px; width: 100%; background: #ff3b30; color: #fff; border: none; padding: 6px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer;">Delete Spot</button>` : ''}
+          </div>
+        `);
 
-  marker.getElement().addEventListener('click', (e) => {
-    e.stopPropagation();
-    marker.togglePopup();
-  });
+        const marker = new mapboxgl.Marker({ color: '#bb0000' })
+          .setLngLat([spot.longitude, spot.latitude])
+          .setPopup(popup)
+          .addTo(map.current);
 
-  markersRef.current.push(marker);
-}
+        marker.getElement().addEventListener('click', (e) => {
+          e.stopPropagation();
+          marker.togglePopup();
+        });
+
+        popup.on('open', () => {
+          const btn = document.getElementById(`delete-spot-${spot.id}`);
+          if (btn) {
+            btn.addEventListener('click', async () => {
+              const confirmed = window.confirm('Are you sure you want to delete this spot?');
+              if (!confirmed) return;
+
+              await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: user.id })
+              });
+
+              popup.remove();
+              marker.remove();
+              markersRef.current = markersRef.current.filter(m => m !== marker);
+              if (fetchSpotsRef.current) fetchSpotsRef.current({});
+            });
+          }
+        });
+
+        markersRef.current.push(marker);
+      }
 
     } catch (err) {
       console.error('Error fetching spots:', err);
     }
   }, [user]);
+
+  useEffect(() => {
+  fetchSpotsRef.current = fetchSpots;
+}, [fetchSpots]);
 
   useEffect(() => {
     if (!map.current) {
@@ -139,22 +168,22 @@ const Map = ({ user }) => {
       });
 
       if (response.ok) {
-  const spot = await response.json();
+        const spot = await response.json();
 
-  if (formData.photos && formData.photos.length > 0) {
-    const photoData = new FormData();
-    Array.from(formData.photos).forEach(file => photoData.append('photos', file));
+        if (formData.photos && formData.photos.length > 0) {
+          const photoData = new FormData();
+          Array.from(formData.photos).forEach(file => photoData.append('photos', file));
 
-    await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`, {
-      method: 'POST',
-      body: photoData,
-    });
-  }
+          await fetch(`${import.meta.env.VITE_API_URL}/api/spots/${spot.id}/photos`, {
+            method: 'POST',
+            body: photoData,
+          });
+        }
 
-  setSidebarOpen(false);
-  setFormData({ title: '', description: '', spot_type: '', is_public: true, photos: null });
-  fetchSpots();
-}
+        setSidebarOpen(false);
+        setFormData({ title: '', description: '', spot_type: '', is_public: true, photos: null });
+        fetchSpots();
+      }
     } catch (err) {
       console.error('Error saving spot:', err);
     }
@@ -173,15 +202,15 @@ const Map = ({ user }) => {
         <div className="absolute top-4 left-4 h-[calc(100%-2rem)] w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-6 z-10 flex flex-col border border-gray-100 transition-all">
 
           <div className="flex items-center justify-between mb-1">
-  <h2 className="text-2xl font-bold text-gray-800">New Spot</h2>
-  <button
-    type="button"
-    onClick={() => setSidebarOpen(false)}
-    className="text-gray-400 hover:text-red-500 transition-colors text-xl font-bold"
-  >
-    ✕
-  </button>
-</div>
+            <h2 className="text-2xl font-bold text-gray-800">New Spot</h2>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="text-gray-400 hover:text-red-500 transition-colors text-xl font-bold"
+            >
+              ✕
+            </button>
+          </div>
 
           <p className="text-[10px] text-gray-400 font-mono mb-6 uppercase tracking-widest">
             {selectedCoords
@@ -199,9 +228,7 @@ const Map = ({ user }) => {
                 className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50"
                 placeholder="Name this spot..."
                 value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
               />
             </div>
@@ -214,9 +241,7 @@ const Map = ({ user }) => {
                 className="border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50/50 h-40 resize-none"
                 placeholder="What's the spot like?"
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
 
@@ -227,9 +252,7 @@ const Map = ({ user }) => {
               <select
                 className="border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-black bg-gray-50/50"
                 value={formData.spot_type}
-                onChange={(e) =>
-                  setFormData({ ...formData, spot_type: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, spot_type: e.target.value })}
                 required
               >
                 <option value="">Select a type...</option>
@@ -242,26 +265,26 @@ const Map = ({ user }) => {
             </div>
 
             <div className="flex items-center justify-between">
-  <label className="text-[10px] font-black text-gray-400 uppercase">Public Spot</label>
-  <button
-    type="button"
-    onClick={() => setFormData({ ...formData, is_public: !formData.is_public })}
-    className={`w-10 h-6 rounded-full transition-colors ${formData.is_public ? 'bg-black' : 'bg-gray-200'}`}
-  >
-    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform mx-1 ${formData.is_public ? 'translate-x-4' : 'translate-x-0'}`} />
-  </button>
-</div>
+              <label className="text-[10px] font-black text-gray-400 uppercase">Public Spot</label>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, is_public: !formData.is_public })}
+                className={`w-10 h-6 rounded-full transition-colors ${formData.is_public ? 'bg-black' : 'bg-gray-200'}`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform mx-1 ${formData.is_public ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </div>
 
-<div className="flex flex-col gap-1">
-  <label className="text-[10px] font-black text-gray-400 uppercase">Photos</label>
-  <input
-    type="file"
-    accept="image/*"
-    multiple
-    onChange={(e) => setFormData({ ...formData, photos: e.target.files })}
-    className="border border-gray-200 p-3 rounded-xl outline-none bg-gray-50/50 text-sm text-gray-500"
-  />
-</div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase">Photos</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setFormData({ ...formData, photos: e.target.files })}
+                className="border border-gray-200 p-3 rounded-xl outline-none bg-gray-50/50 text-sm text-gray-500"
+              />
+            </div>
 
             <button
               type="submit"
