@@ -6,7 +6,22 @@ const app = express();
 //add comment to force redeploy
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "*",
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.CLIENT_URL,
+        /https:\/\/land-wrld.*\.vercel\.app$/,
+      ];
+      if (
+        !origin ||
+        allowed.some((a) =>
+          typeof a === "string" ? a === origin : a.test(origin),
+        )
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
   }),
 );
 app.use(express.json());
