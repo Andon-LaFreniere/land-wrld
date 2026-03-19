@@ -62,7 +62,8 @@ const Map = ({ user }) => {
           console.error('Error fetching photos:', err);
         }
 
-        const isOwner = user && user.id === spot.user_id;
+        console.log('user.id:', user?.id, 'spot.user_id:', spot.user_id, 'isOwner:', user && user.id === spot.user_id);
+const isOwner = user && user.id === spot.user_id;
 
         const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
           <div style="font-family: sans-serif; padding: 4px; max-width: 200px;">
