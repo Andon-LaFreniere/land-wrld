@@ -1,6 +1,6 @@
 # land-wrld
 
-##
+## Description
 
 Community supported map of skateboarding spots all across the world. 
 
